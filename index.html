@@ -587,6 +587,11 @@ function toast(msg) {
 const SAVE_KEY = 'friendGame.v2';
 const save = { cleared: 0, yes: false, sound: CONFIG.sound, stars: {} };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY)) || {}); } catch (e) {}
+// levels 1–4 can be played in any order; a level counts as fixed once it has stars
+for (let i = 1; i <= save.cleared; i++) save.stars[i] = save.stars[i] || 1;   // older saves only kept a count
+const isCleared = i => (save.stars[i] || 0) > 0;
+const clearedCount = () => [1, 2, 3, 4].filter(isCleared).length;
+const nextLevel = () => [1, 2, 3, 4].find(i => !isCleared(i));
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
 /* =========================================================
@@ -797,7 +802,7 @@ async function show(n) {
   if (n >= 1 && n <= 4) {
     stats = { t0: performance.now(), misses: 0, hints: 0, done: false, awayNoted: false };
     hintTimer = setTimeout(showHint, CONFIG.hintAfter * 1000);
-    track.now(`▶️ ${CONFIG.name} started ${levelName(n)}` + (n <= save.cleared ? ' (replay)' : ''), { tags: 'arrow_forward' });
+    track.now(`▶️ ${CONFIG.name} started ${levelName(n)}` + (isCleared(n) ? ' (replay)' : ''), { tags: 'arrow_forward' });
   }
   L[n].enter();
   if (!reduced) {
@@ -831,8 +836,7 @@ function clearLevel(n, detail, stars) {
   hideHint();
   if (stats.hints) stars = Math.min(stars, 2);
   const t = secs();
-  const first = n > save.cleared;
-  if (first) save.cleared = n;
+  const first = !isCleared(n);
   save.stars[n] = Math.max(save.stars[n] || 0, stars);
   persist();
   track.now(`✅ ${CONFIG.name} cleared ${levelName(n)} ${starText(stars)} in ${t}s (${detail}${stats.hints ? `, ${stats.hints} hint${stats.hints > 1 ? 's' : ''}` : ''})` + (first ? '' : ' (replay)'), { tags: 'white_check_mark', priority: 4 });
@@ -841,9 +845,10 @@ function clearLevel(n, detail, stars) {
   $('#ccStars').innerHTML = [0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}" style="--i:${i}">${doodle('star')}</span>`).join('');
   $('#ccTitle').textContent = ['', 'Nice try!', 'So good!', 'Perfect!!'][stars];
   $('#ccStats').textContent = `Level ${n} done · ${t}s · ${detail}`;
-  $('#ccNext').textContent = n < 4 ? `next up: ${CONFIG.levels[n].title} (tap ${CONFIG.levels[n].spot})` : 'you unlocked the last page…';
-  $('#ccGo').textContent = n < 4 ? 'Next level →' : 'Last page →';
-  $('#ccGo').onclick = () => { closeClear(); show(n + 1); };
+  const nx = nextLevel();
+  $('#ccNext').textContent = nx ? `next up: ${CONFIG.levels[nx - 1].title} (tap ${CONFIG.levels[nx - 1].spot})` : 'you unlocked the last page…';
+  $('#ccGo').textContent = nx ? 'Next level →' : 'Last page →';
+  $('#ccGo').onclick = () => { closeClear(); show(nx || 5); };
   $('#clear').classList.remove('hidden');
   const card = $('#clearCard');
   card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
@@ -859,23 +864,24 @@ $('#mapBtn').addEventListener('click', () => {
 L[0] = (() => {
   // where each level sits on the drawing (percent of the picture)
   const SPOTS = { 1: [29.5, 88], 2: [37, 13], 3: [15, 15], 4: [88, 18], 5: [31, 36] };
-  function open(i) { return i <= save.cleared + 1; }
+  function open(i) { return i < 5 || clearedCount() === 4; }
   function go(i, el) {
     if (!open(i)) {
       el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
-      toast(`Finish level ${save.cleared + 1} first 🔒`);
+      const left = 4 - clearedCount();
+      toast(`Fix all 4 levels first, ${left} to go 🔒`);
       beep(200, .15, 'triangle', .05, .7);
       return;
     }
     show(i);
   }
   function enter() {
-    const c = save.cleared;
-    $('#progress').innerHTML = [1, 2, 3, 4].map(i => `<i class="${i <= c ? 'on' : ''}">${i <= c ? '✓' : ''}</i>`).join('') + `<span>${c} / 4 fixed</span>`;
+    const c = clearedCount(), nx = nextLevel() || (save.yes ? 0 : 5);
+    $('#progress').innerHTML = [1, 2, 3, 4].map(i => `<i class="${isCleared(i) ? 'on' : ''}">${isCleared(i) ? '✓' : ''}</i>`).join('') + `<span>${c} / 4 fixed</span>`;
     const hots = $('#hots'), list = $('#levels');
     hots.innerHTML = ''; list.innerHTML = '';
     for (let i = 1; i <= 5; i++) {
-      const done = i === 5 ? save.yes : i <= c, next = i === c + 1 && !(i === 5 && save.yes);
+      const done = i === 5 ? save.yes : isCleared(i), next = i === nx;
       const title = i === 5 ? 'Friends again?' : CONFIG.levels[i - 1].title;
       const spot = i === 5 ? CONFIG.finalSpot : CONFIG.levels[i - 1].spot;
       const state = done ? ' done' : open(i) ? (next ? ' next' : '') : ' locked';
@@ -1455,7 +1461,7 @@ L[5] = (() => {
 soundIcon();
 $('#mapBtn').classList.add('ghost-slot');
 L[0].enter();
-track.now(`👀 ${CONFIG.name} opened the friendship game (${isPhone ? 'phone' : 'laptop'})` + (save.cleared ? `, already fixed ${save.cleared}/4 levels` : ''), { tags: 'eyes' });
+track.now(`👀 ${CONFIG.name} opened the friendship game (${isPhone ? 'phone' : 'laptop'})` + (clearedCount() ? `, already fixed ${clearedCount()}/4 levels` : ''), { tags: 'eyes' });
 </script>
 </body>
 </html>

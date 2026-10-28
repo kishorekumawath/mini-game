@@ -1,6 +1,6 @@
 # Fix Our Friendship 🎮🤝
 
-A tiny 4-level game drawn in a scribbly coloured-pencil style. She has to finish every level to unlock the last question: **"So… friends again?"** There are no hearts anywhere, just friendship things like momos, pizza, our songs, co-op games, bracelets, puzzle pieces and paper-plane notes.
+A tiny 4-level game drawn in a scribbly coloured-pencil style. She can play the 4 levels in any order, and has to finish all of them to unlock the last question: **"So… friends again?"** There are no hearts anywhere, just friendship things like momos, pizza, our songs, co-op games, bracelets, puzzle pieces and paper-plane notes.
 
 0. **My room (the map)**: your drawing (`assets/room.jpg`) with numbered markers on things in the room. She taps the controller, the notes on the wall, the moon poster, the window and finally "me on the sofa". Below the drawing is a list of the same levels as hand-drawn cards, with the stars she's earned. Progress is saved in her browser, so a refresh doesn't lose it.
 1. **Catch our good stuff**: friendship doodles fall into a cardboard **US** box. Catching 5 in a row is a combo and gives a bonus point, and a gold star counts double. Catching a grumpy cloud or a `#@!` fight bubble costs a point.
