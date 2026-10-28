@@ -540,6 +540,24 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const levelName = n => `Level ${n}: ${CONFIG.levels[n - 1].title}`;
 const starText = s => '⭐'.repeat(s) + '☆'.repeat(3 - s);
 
+// draws an SVG into a PNG once; phones repaint PNGs far faster than scribbly SVGs
+const canPng = CSS.supports('background-image', '-webkit-image-set(url("a.png") 2x)');
+function bakePng(src, w, h) {
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(im, 0, 0, w, h);
+        res(c.toDataURL('image/png'));
+      } catch (e) { res(null); }
+    };
+    im.onerror = () => res(null);
+    im.src = src;
+  });
+}
+
 function toast(msg) {
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
@@ -650,7 +668,9 @@ const PATTERNS = {};
       PATTERNS[id] = `<pattern id="${id}" width="36" height="36" patternUnits="userSpaceOnUse">${inner}</pattern>`;
       defs += PATTERNS[id];
       const css = (light ? '' : `<rect width="60" height="60" fill="${cols[1]}" opacity=".14"/>`) + hatch(cols, light ? 16 : 44, 60, light ? .45 : .9, 1.7);
-      document.documentElement.style.setProperty('--scr-' + name + (light ? '-l' : ''), `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'>${css}</svg>`)}")`);
+      const prop = '--scr-' + name + (light ? '-l' : ''), src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'>${css}</svg>`)}`;
+      document.documentElement.style.setProperty(prop, `url("${src}")`);
+      if (canPng) bakePng(src, 120, 120).then(p => p && document.documentElement.style.setProperty(prop, `-webkit-image-set(url("${p}") 2x)`));
     }
   }
   $('#defs').insertAdjacentHTML('beforeend', defs);
@@ -684,10 +704,11 @@ const VB = { box: '-60 -30 120 60' };
 const LABEL = { pizza: 'pizza nights', icecream: 'ice cream runs', momo: 'momos', bracelet: 'our bracelet', controller: 'co-op games', plane: 'secret notes', puzzle: 'we just fit', mug: 'late-night chai', popcorn: 'movie nights', headphones: 'our songs', star: 'bestie bonus' };
 const STROKE = `stroke="${INK}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"`;
 
+// an <img> is drawn once and reused, while an inline SVG with the rough filter re-renders on every 3D flip or wobble
 function doodle(name) {
-  return `<svg class="doodle" viewBox="${VB[name] || '-30 -30 60 60'}" aria-hidden="true"><g filter="url(#rough)" ${STROKE}>${ICONS[name]}</g></svg>`;
+  return `<img class="doodle" src="${iconSrc(name)}" alt="" aria-hidden="true" draggable="false">`;
 }
-// standalone image version (for the canvas and confetti), with its own patterns baked in
+// standalone image version, with its own patterns baked in
 const SRC = {};
 function iconSrc(name) {
   if (SRC[name]) return SRC[name];
@@ -891,7 +912,7 @@ L[1] = (() => {
   const img = {}, baked = {};
   function bake(k) {
     if (!img[k].naturalWidth) return;
-    const d = devicePixelRatio || 1, c = document.createElement('canvas');
+    const d = Math.min(2, devicePixelRatio || 1), c = document.createElement('canvas');
     c.width = Math.ceil((k === 'box' ? BW() : S) * d); c.height = Math.ceil((k === 'box' ? BH() : S) * d);
     c.getContext('2d').drawImage(img[k], 0, 0, c.width, c.height);
     baked[k] = c;
@@ -904,7 +925,7 @@ L[1] = (() => {
   $('#l1Bad').innerHTML = BAD.map(k => `<span>${doodle(k)}</span>`).join('');
 
   function fit() {
-    const r = field.getBoundingClientRect(), d = devicePixelRatio || 1;
+    const r = field.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1);   // 3x phone screens triple the pixels for no visible gain
     W = r.width - 5; H = r.height - 5;
     cv.width = Math.round(W * d); cv.height = Math.round(H * d);
     ctx.setTransform(d, 0, 0, d, 0, 0);
@@ -1119,7 +1140,15 @@ function pictureSrc() {
   const withCaption = body.replace('stroke="none"></text>', `stroke="none">${CONFIG.pictureCaption.replace(/[<&]/g, '')}</text>`);
   const used = [...new Set([...withCaption.matchAll(/url\(#(h-[a-z-]+)\)/g)].map(m => m[1]))];
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="600" height="600"><defs>${used.map(id => PATTERNS[id]).join('')}<filter id="rough" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="2.6" xChannelSelector="R" yChannelSelector="G"/></filter></defs><g filter="url(#rough)" ${STROKE}>${withCaption}</g></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+let PIC = null;
+function pictureUrl() {
+  if (PIC) return PIC;
+  const src = pictureSrc();
+  PIC = `url("${src}")`;
+  bakePng(src, 600, 600).then(p => { if (p) { PIC = `url("${p}")`; $('#pgrid').style.setProperty('--pic', PIC); } });
+  return PIC;
 }
 
 L[3] = (() => {
@@ -1146,7 +1175,7 @@ L[3] = (() => {
       taps = 0; done = false;
       const g = $('#pgrid');
       g.className = 'pgrid'; g.innerHTML = '';
-      g.style.setProperty('--pic', pictureSrc());
+      g.style.setProperty('--pic', pictureUrl());
       const rots = Array.from({ length: 9 }, () => 1 + Math.floor(Math.random() * 3));
       rots[Math.floor(Math.random() * 9)] = 0;   // one piece is already right, as a starting clue
       best = rots.reduce((s, r) => s + (4 - r) % 4, 0);
