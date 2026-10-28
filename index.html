@@ -26,7 +26,7 @@
     -webkit-user-select: none; user-select: none;
   }
   body::before { /* paper grain */
-    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; mix-blend-mode: multiply; opacity: .6;
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .6;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .45  0 0 0 0 .38  0 0 0 0 .3  0 0 0 .08 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
   body::after { /* a big crayon smudge in the level's colour */
@@ -351,7 +351,7 @@
     <span class="kicker">a tiny game for <span data-name></span></span>
     <h1>Fix our <span class="mark">friendship</span></h1>
     <div class="room">
-      <div class="room-frame"><img src="assets/room.jpg" alt="A scribbly drawing of me lying on the sofa at night, staring at the ceiling"></div>
+      <div class="room-frame"><img src="assets/room.jpg" width="1080" height="514" fetchpriority="high" decoding="async" alt="A scribbly drawing of me lying on the sofa at night, staring at the ceiling"></div>
       <div id="hots"></div>
     </div>
     <p class="caption" id="roomCaption"></p>
@@ -698,15 +698,9 @@ function iconSrc(name) {
   return SRC[name] = 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
 
-// "boiling" pencil lines
-if (!reduced) {
-  const turb = $('#turb');
-  let seed = 1;
-  setInterval(() => { seed = seed % 4 + 1; turb.setAttribute('seed', seed); }, 140);
-}
-
 const FUN = ['pizza', 'icecream', 'momo', 'bracelet', 'plane', 'puzzle', 'mug', 'popcorn', 'headphones', 'controller', 'star'];
 function confetti(n = 60) {
+  if (isPhone) n = Math.ceil(n / 2);
   for (let i = 0; i < n; i++) {
     const s = document.createElement('div');
     s.className = 'conf';
@@ -865,10 +859,15 @@ L[0] = (() => {
       b.addEventListener('click', () => go(i, b));
       if (!reduced) {
         const inn = b.firstElementChild;
+        let tiltRaf = 0;
         b.addEventListener('pointermove', e => {
-          const r = b.getBoundingClientRect();
-          inn.style.setProperty('--ry', ((e.clientX - r.left) / r.width - .5) * 20 + 'deg');
-          inn.style.setProperty('--rx', -((e.clientY - r.top) / r.height - .5) * 16 + 'deg');
+          if (e.pointerType !== 'mouse' || tiltRaf) return;
+          tiltRaf = requestAnimationFrame(() => {
+            tiltRaf = 0;
+            const r = b.getBoundingClientRect();
+            inn.style.setProperty('--ry', ((e.clientX - r.left) / r.width - .5) * 20 + 'deg');
+            inn.style.setProperty('--rx', -((e.clientY - r.top) / r.height - .5) * 16 + 'deg');
+          });
         });
         b.addEventListener('pointerleave', () => { inn.style.setProperty('--rx', '0deg'); inn.style.setProperty('--ry', '0deg'); });
       }
@@ -888,8 +887,16 @@ L[1] = (() => {
   const GOOD = ['pizza', 'icecream', 'momo', 'bracelet', 'plane', 'puzzle', 'mug', 'popcorn', 'headphones'];
   const BAD = ['cloud', 'grr'];
   const goal = CONFIG.catchGoal;
-  const img = {};
-  [...GOOD, ...BAD, 'star', 'box'].forEach(k => { img[k] = new Image(); img[k].src = iconSrc(k); });
+  // the SVG icons are drawn once into small canvases; drawing SVGs every frame is slow on phones
+  const img = {}, baked = {};
+  function bake(k) {
+    if (!img[k].naturalWidth) return;
+    const d = devicePixelRatio || 1, c = document.createElement('canvas');
+    c.width = Math.ceil((k === 'box' ? BW() : S) * d); c.height = Math.ceil((k === 'box' ? BH() : S) * d);
+    c.getContext('2d').drawImage(img[k], 0, 0, c.width, c.height);
+    baked[k] = c;
+  }
+  [...GOOD, ...BAD, 'star', 'box'].forEach(k => { img[k] = new Image(); img[k].onload = () => bake(k); img[k].src = iconSrc(k); });
   const field = $('#field'), cv = $('#cv'), ctx = cv.getContext('2d');
   const keys = { l: false, r: false };
   let W = 300, H = 375, S = 48, items, floats, score, hits, combo, bestCombo, boxX, target, tilt, spawnT, easy, running = false, raf, last;
@@ -902,6 +909,7 @@ L[1] = (() => {
     cv.width = Math.round(W * d); cv.height = Math.round(H * d);
     ctx.setTransform(d, 0, 0, d, 0, 0);
     S = clamp(W * .14, 40, 66);
+    for (const k in img) bake(k);
   }
   const BW = () => S * 2.3, BH = () => S * 2.3 / 2;
   function hud() {
@@ -915,11 +923,11 @@ L[1] = (() => {
     ctx.clearRect(0, 0, W, H);
     for (const it of items) {
       ctx.save(); ctx.translate(it.x, it.y); ctx.rotate(it.rot);
-      ctx.drawImage(img[it.k], -S / 2, -S / 2, S, S);
+      ctx.drawImage(baked[it.k] || img[it.k], -S / 2, -S / 2, S, S);
       ctx.restore();
     }
     ctx.save(); ctx.translate(boxX, H - BH() / 2 - 4); ctx.rotate(tilt);
-    ctx.drawImage(img.box, -BW() / 2, -BH() / 2, BW(), BH());
+    ctx.drawImage(baked.box || img.box, -BW() / 2, -BH() / 2, BW(), BH());
     ctx.restore();
     ctx.textAlign = 'center';
     for (const f of floats) {
