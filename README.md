@@ -5,11 +5,11 @@ A tiny 4-level game drawn in a scribbly coloured-pencil style. She has to finish
 0. **My room (the map)**: your drawing (`assets/room.jpg`) with numbered markers on things in the room. She taps the controller, the notes on the wall, the moon poster, the window and finally "me on the sofa". Below the drawing is a list of the same levels as hand-drawn cards, with the stars she's earned. Progress is saved in her browser, so a refresh doesn't lose it.
 1. **Catch our good stuff**: friendship doodles fall into a cardboard **US** box. Catching 5 in a row is a combo and gives a bonus point, and a gold star counts double. Catching a grumpy cloud or a `#@!` fight bubble costs a point.
 2. **Our memory wall**: sticky notes flip over in 3D to show polaroids. When she finds a pair, it gets pinned to the wall and one of your memory notes pops up ("Remember when…"). Matches in a row build a streak.
-3. **Fix our picture**: a scribbly picture of "US" (bunting, a night window, two mugs on the blue sofa) is cut into 9 pieces, all turned the wrong way. She taps each piece to turn it, and once they're all upright the picture gets taped back together. The counter shows the fewest taps possible.
+3. **Fix our picture**: a scribbly picture of "US" (bunting, a night window, two mugs on the blue sofa) is cut into a sliding puzzle: 8 pieces and one gap. She taps a piece next to the gap to slide it in, and once every piece is home the last one fades in and the picture gets taped back together. Every scramble can be solved in 10–16 moves, and the counter shows the fewest possible.
 4. **Spell it out**: 3D toy letter blocks spell `FRIENDS`, with 2 fake blocks mixed in. A wrong block just shakes and says "nope!".
 5. **Last page**: a notebook page flips over to ask the question. "No" pleads twice and then runs away. "Yes" makes friendship doodles rain down and shows your ending message.
 
-Each level gives **1–3 stars** for how well she did, and using a hint caps it at 2. She can't lose a level. If she's stuck for 40 seconds or keeps missing, a **"stuck? get a hint 💡"** note appears: easy mode in Level 1, a quick peek at all the cards in Level 2, one piece fixed in Level 3, the next block lit up in Level 4.
+Each level gives **1–3 stars** for how well she did, and using a hint caps it at 2. She can't lose a level. If she's stuck for 40 seconds or keeps missing, a **"stuck? get a hint 💡"** note appears: easy mode in Level 1, a quick peek at all the cards in Level 2, the next 4 correct slides done for her in Level 3, the next block lit up in Level 4.
 
 ## 1. Personalize it
 

@@ -235,17 +235,26 @@
   .pgrid {
     --gs: max(min(calc(100vw - 80px), 270px), min(420px, calc(100vw - 80px), calc(100vh - 300px)));
     --gs: max(min(calc(100vw - 80px), 270px), min(420px, calc(100vw - 80px), calc(100dvh - 300px)));
-    position: relative; width: var(--gs); height: var(--gs); display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
-    gap: 9px; perspective: 900px; transition: gap .7s cubic-bezier(.5, 0, .2, 1);
+    --g: 9px; position: relative; width: var(--gs); height: var(--gs);
   }
-  .tile { position: relative; overflow: hidden; background: #fff; border: 2px solid var(--ink); border-radius: 5px 9px 6px 8px; box-shadow: 3px 4px 0 rgba(43, 39, 48, .25); transition: border-color .6s ease, box-shadow .6s ease, border-radius .6s ease; }
-  .tile-face { position: absolute; inset: 0; background-image: var(--pic); background-size: 300% 300%; background-position: var(--bp); transform: rotate(var(--deg, 0deg)); transition: transform .55s cubic-bezier(.34, 1.56, .64, 1); }
+  /* each piece sits at column --c, row --r and slides there with a transform */
+  .tile {
+    position: absolute; left: 0; top: 0; width: calc((100% - 2 * var(--g)) / 3); height: calc((100% - 2 * var(--g)) / 3);
+    overflow: hidden; background: #fff; border: 2px solid var(--ink); border-radius: 5px 9px 6px 8px; box-shadow: 3px 4px 0 rgba(43, 39, 48, .25);
+    transform: translate(calc(var(--c, 0) * (100% + var(--g))), calc(var(--r, 0) * (100% + var(--g))));
+    transition: transform .18s ease-out, border-color .6s ease, box-shadow .6s ease, border-radius .6s ease;
+  }
+  .tile-face { position: absolute; inset: 0; background-image: var(--pic); background-size: 300% 300%; background-position: var(--bp); }
   .tile .ok-mark { position: absolute; right: 4px; top: 0; font-family: 'Gaegu', cursive; font-weight: 700; font-size: 24px; color: var(--hue); opacity: 0; transition: opacity .25s ease; pointer-events: none; }
   .tile.ok .ok-mark { opacity: 1; }
-  .tile.tap { animation: tileTap .45s ease; }
-  @keyframes tileTap { 40% { transform: rotateX(22deg) rotateY(-16deg) translateZ(-30px) scale(.93); } }
-  .pgrid.mended { gap: 0; }
-  .pgrid.mended .tile { border-color: transparent; box-shadow: none; border-radius: 0; }
+  .tile.blank { opacity: 0; pointer-events: none; transition: opacity .6s ease .5s; }
+  .tile.tap .tile-face { animation: tileTap .25s ease; }
+  @keyframes tileTap { 50% { transform: scale(.94); } }
+  .tile.shake { animation: shake .3s ease; }
+  .tile.glow { border-color: #e0a91c; box-shadow: 0 0 0 4px #fff3a6, 3px 4px 0 rgba(43, 39, 48, .25); }
+  .pgrid.mended { --g: 0px; }
+  .pgrid.mended .tile { border-color: transparent; box-shadow: none; border-radius: 0; transition: transform .7s cubic-bezier(.5, 0, .2, 1), width .7s cubic-bezier(.5, 0, .2, 1), height .7s cubic-bezier(.5, 0, .2, 1), border-color .6s ease, box-shadow .6s ease, border-radius .6s ease, opacity .6s ease .5s; }
+  .pgrid.mended .tile.blank { opacity: 1; }
   .pgrid.mended .ok-mark { opacity: 0; }
   .tapes span { position: absolute; z-index: 2; width: 26%; height: 9%; background: var(--scr-cream-l), rgba(255, 246, 215, .75); border: 1px solid rgba(43, 39, 48, .2); opacity: 0; transform: rotate(var(--r)) scale(1.6); transition: opacity .3s ease, transform .4s cubic-bezier(.3, 1.6, .5, 1); transition-delay: var(--d); }
   .pgrid.mended .tapes span { opacity: 1; transform: rotate(var(--r)) scale(1); }
@@ -408,8 +417,8 @@
   <div class="wrap">
     <span class="kicker">level 3</span>
     <h2 data-ltitle="3"></h2>
-    <p class="soft">Our picture got all mixed up. Tap the pieces to turn them the right way up.</p>
-    <div class="stats"><span class="chip" id="l3Taps"></span><span class="chip" id="l3Best"></span></div>
+    <p class="soft">Our picture got all mixed up. Tap a piece next to the gap to slide it in.</p>
+    <div class="stats"><span class="chip" id="l3Moves"></span><span class="chip" id="l3Best"></span></div>
     <div class="sk pframe"><div class="pgrid" id="pgrid"></div></div>
   </div>
 </section>
@@ -1160,63 +1169,105 @@ function pictureUrl() {
   return PIC;
 }
 
+// sliding puzzle: `state[spot]` is the piece sitting in that spot, and piece 8 is the gap
 L[3] = (() => {
-  let tiles, taps, done, best;
-  const upright = t => t.deg % 360 === 0;
-  function hud() { $('#l3Taps').textContent = `taps ${taps}`; $('#l3Best').textContent = `fewest possible: ${best}`; }
-  function turn(t, by = 90) {
-    t.deg += by;
-    t.face.style.setProperty('--deg', t.deg + 'deg');
-    t.el.classList.toggle('ok', upright(t));
-    t.el.classList.remove('tap'); void t.el.offsetWidth; t.el.classList.add('tap');
+  const GAP = 8;
+  const NB = Array.from({ length: 9 }, (_, p) => [p - 3, p + 3, p % 3 ? p - 1 : -1, p % 3 < 2 ? p + 1 : -1].filter(q => q >= 0 && q < 9));
+  const dist = s => s.reduce((d, v, p) => v === GAP ? d : d + Math.abs(p % 3 - v % 3) + Math.abs((p / 3 | 0) - (v / 3 | 0)), 0);
+  // fewest moves (IDA* search); returns the spots to tap, in order
+  function solve(start) {
+    const s = start.slice(), path = [];
+    let bound = dist(s);
+    const search = (g, b, prev) => {
+      const h = dist(s);
+      if (g + h > bound) return g + h;
+      if (!h) return true;
+      let min = Infinity;
+      for (const n of NB[b]) {
+        if (n === prev) continue;
+        [s[b], s[n]] = [s[n], s[b]]; path.push(n);
+        const t = search(g + 1, n, b);
+        if (t === true) return true;
+        path.pop(); [s[b], s[n]] = [s[n], s[b]];
+        min = Math.min(min, t);
+      }
+      return min;
+    };
+    for (;;) { const t = search(0, s.indexOf(GAP), -1); if (t === true) return path; bound = t; }
+  }
+  // random slides from the finished picture, kept to a fair 10–16 move puzzle
+  function scramble() {
+    let s, len, tries = 0;
+    do {
+      s = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+      let b = GAP, prev = -1;
+      for (let i = 0; i < 18; i++) { const n = pick(NB[b].filter(q => q !== prev)); [s[b], s[n]] = [s[n], s[b]]; prev = b; b = n; }
+      len = solve(s).length;
+    } while ((len < 10 || len > 16) && ++tries < 25);
+    return { s, len };
+  }
+
+  let tiles, state, moves, done, best, busy;
+  function hud() { $('#l3Moves').textContent = `moves ${moves}`; $('#l3Best').textContent = `fewest possible: ${best}`; }
+  function place(piece, spot) {
+    const el = tiles[piece];
+    el.style.setProperty('--c', spot % 3); el.style.setProperty('--r', spot / 3 | 0);
+    el.classList.toggle('ok', piece === spot && piece !== GAP);
+  }
+  function slide(spot) {
+    const b = state.indexOf(GAP);
+    if (!NB[b].includes(spot)) return false;
+    const piece = state[spot];
+    [state[b], state[spot]] = [state[spot], state[b]];
+    place(piece, b); place(GAP, spot);
+    const el = tiles[piece];
+    el.classList.remove('tap', 'glow'); void el.offsetWidth; el.classList.add('tap');
+    beep(piece === b ? 880 : 440 + b * 25, .08, 'triangle', .06);
+    return true;
   }
   async function check() {
-    if (done || !tiles.every(upright)) return;
+    if (done || !state.every((v, i) => v === i)) return;
     done = true;
-    await sleep(500);
+    await sleep(300);
     $('#pgrid').classList.add('mended');
     tune([523, 659, 784, 1047, 1319], 110);
     await sleep(1900);
-    clearLevel(3, `${taps} taps (fewest possible: ${best})`, taps <= best + 2 ? 3 : taps <= best + 8 ? 2 : 1);
+    clearLevel(3, `${moves} moves (fewest possible: ${best})`, moves <= best + 6 ? 3 : moves <= best + 20 ? 2 : 1);
   }
   return {
     enter() {
-      taps = 0; done = false;
+      moves = 0; done = false; busy = false;
       const g = $('#pgrid');
       g.className = 'pgrid'; g.innerHTML = '';
       g.style.setProperty('--pic', pictureUrl());
-      const rots = Array.from({ length: 9 }, () => 1 + Math.floor(Math.random() * 3));
-      rots[Math.floor(Math.random() * 9)] = 0;   // one piece is already right, as a starting clue
-      best = rots.reduce((s, r) => s + (4 - r) % 4, 0);
+      const sc = scramble();
+      state = sc.s; best = sc.len;
       hud();
-      tiles = rots.map((r, i) => {
+      tiles = Array.from({ length: 9 }, (_, piece) => {
         const el = document.createElement('button');
-        el.className = 'tile';
-        el.setAttribute('aria-label', `Picture piece ${i + 1}`);
+        el.className = 'tile' + (piece === GAP ? ' blank' : '');
+        el.setAttribute('aria-label', `Picture piece ${piece + 1}`);
         el.innerHTML = '<div class="tile-face"></div><span class="ok-mark">✓</span>';
-        const face = el.firstElementChild;
-        face.style.setProperty('--bp', `${(i % 3) * 50}% ${Math.floor(i / 3) * 50}%`);
-        const t = { el, face, deg: r * 90 };
-        face.style.setProperty('--deg', t.deg + 'deg');
-        el.classList.toggle('ok', upright(t));
+        el.firstElementChild.style.setProperty('--bp', `${(piece % 3) * 50}% ${Math.floor(piece / 3) * 50}%`);
         el.addEventListener('click', () => {
-          if (done || stats.done) return;
-          taps++; hud();
-          turn(t);
-          beep(upright(t) ? 880 : 420 + (t.deg / 90 % 4) * 60, .1, 'triangle', .07);
-          check();
+          if (done || busy || stats.done) return;
+          if (slide(state.indexOf(piece))) { moves++; hud(); check(); }
+          else { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); beep(200, .12, 'triangle', .05, .7); miss(12); }
         });
         g.appendChild(el);
-        return t;
+        return el;
       });
+      state.forEach(place);
       // tape strips that stick the picture back together once it's fixed
       g.insertAdjacentHTML('beforeend', `<div class="tapes">${[[20, 12, -14], [54, 86, 10], [-4, 30, 78], [76, 62, -76]].map(([x, y, r], i) => `<span style="left:${x}%;top:${y}%;--r:${r}deg;--d:${.15 + i * .12}s"></span>`).join('')}</div>`);
     },
-    hint() {
-      const t = tiles.find(t => !upright(t));
-      if (!t) return;
-      turn(t, 360 - t.deg % 360);
-      toast('Fixed one piece for you 🧩');
+    async hint() {
+      if (busy || done) return;
+      busy = true;
+      const steps = solve(state).slice(0, 4);
+      for (const spot of steps) { slide(spot); await sleep(320); }
+      busy = false;
+      toast(`Slid ${steps.length} piece${steps.length === 1 ? '' : 's'} for you 🧩`);
       check();
     }
   };
