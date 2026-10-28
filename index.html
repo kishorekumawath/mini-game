@@ -288,7 +288,7 @@
   /* =========================================================
      final: the note that flips
      ========================================================= */
-  .final-card { width: min(410px, 100%); height: min(520px, calc(100vh - 120px)); height: min(520px, calc(100dvh - 120px)); min-height: 440px; margin: 0 auto; perspective: 1400px; }
+  .final-card { width: min(430px, 100%); height: min(660px, calc(100vh - 110px)); height: min(660px, calc(100dvh - 110px)); min-height: 480px; margin: 0 auto; perspective: 1400px; }
   .fc-in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 1s cubic-bezier(.3, 1.2, .4, 1); }
   .final-card.flipped .fc-in { transform: rotateY(180deg); }
   .final-card.wiggle .fc-in { animation: wiggle .5s ease; }
@@ -302,7 +302,12 @@
       repeating-linear-gradient(180deg, transparent 0 33px, #cfe0f2 33px 34px) 0 18px, #fffdf5;
     box-shadow: 0 30px 50px -28px rgba(60, 40, 10, .6);
   }
-  .fc-front { cursor: pointer; }
+  .fc-front { cursor: pointer; justify-content: flex-start; overflow-y: auto; }
+  .fc-front > :first-child { margin-top: auto; }   /* centred when it fits, scrollable when it doesn't */
+  .fc-front > :last-child { margin-bottom: auto; }
+  .fc-front .icons-row span { width: 40px; }
+  .letter { margin: 2px 0 0; text-align: left; font-size: clamp(17px, 2vw, 19px); line-height: 1.4; }
+  .fc-front .sig { align-self: flex-end; font-size: 26px; }
   .fc-back { transform: rotateY(180deg); }
   .icons-row { display: flex; gap: 6px; justify-content: center; }
   .icons-row span { position: relative; width: 52px; }
@@ -429,8 +434,9 @@
           <span class="kicker">the last page</span>
           <h2>You did it, <span data-name></span>!</h2>
           <div class="icons-row" id="doneIcons"></div>
-          <p class="soft">All 4 levels done. There's just one question left, on the back of this page…</p>
-          <span class="flip-hint">tap to flip it over ↻</span>
+          <p class="letter" id="apology"></p>
+          <p class="sig">— <span data-from></span></p>
+          <span class="flip-hint">one question left on the back… tap to flip ↻</span>
         </div>
         <div class="fc-face fc-back">
           <div id="fcAsk">
@@ -509,6 +515,9 @@ const CONFIG = {
   magicWord: "FRIENDS",
   magicHint: "Spell what we are. Careful, 2 of these blocks are fakes 👀",
   decoys: 2,
+
+  // A letter on the last page, read before she flips it over to the question
+  apology: "I'm truly sorry for what I've done. I know I may have hurt you, and I genuinely regret it. I'm not asking you to forget everything that happened, but please give me one last chance to make things right. I really miss the way we used to be, and I wish we could be friends again like before. I promise I'll try my best not to repeat the same mistakes. I understand if you need time, but I hope you'll give me one more chance.",
 
   // Final question
   question: "So… friends again? 🥺👉👈",
@@ -1295,7 +1304,8 @@ L[5] = (() => {
   let forgiven = false, runaway = false, nos = 0, dodges = 0;
   let lastPointer = { x: -999, y: -999 };
   addEventListener('pointermove', e => { lastPointer = { x: e.clientX, y: e.clientY }; }, { passive: true });
-  $('#doneIcons').innerHTML = [1, 2, 3, 4].map(i => `<span>${doodle(LEVEL_ICON[i])}</span>`).join('');
+  $('#apology').textContent = CONFIG.apology;
+  $('#doneIcons').innerHTML =[1, 2, 3, 4].map(i => `<span>${doodle(LEVEL_ICON[i])}</span>`).join('');
   $('#askDoodle').innerHTML = doodle('puzzle');
   $('#endDoodle').innerHTML = doodle('bracelet');
 
